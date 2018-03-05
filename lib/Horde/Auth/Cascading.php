@@ -62,11 +62,6 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
         parent::__construct($params);
     }
 
-    /*public function getParams() //test function to see all arrays
-    {
-       return($this->_test);
-    }*/
-
     /**
      * Find out if a set of login credentials are valid.
      * Valid means valid in any backend
