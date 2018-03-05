@@ -31,64 +31,41 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
      * @param array $params  Required parameters:
      * <pre>
      * 'drivers' - array hash of (Horde_Auth_Base) The list of backend drivers.
-     * 'order' - a list of drivers indexes to define a default order.
-     * </pre>
-     *
      * 'capabilities' - defines capabilities this driver
-     *  exposes and how to map them to the backends.
-     * Defaults to "order" for all drivers which support it.
+     *   exposes and how to map them to the backends.
+     *   Defaults to "order" for all drivers which support it.
+     * </pre>
      *
      * @throws InvalidArgumentException
      */
     public function __construct(array $params = array())
     {
-        $this->_test = $params;
-        foreach (array('drivers', 'order') as $val) {
-            if (!isset($params[$val])) {
-                throw new InvalidArgumentException('Missing ' . $val . ' parameter.');
-            }
+        if (!isset($params['drivers'])) {
+            throw new InvalidArgumentException('Missing ' . $params['drivers'] . ' parameter.');
         }
         $capabilities = array();
-        // Autodetect capabilities and build a default execution order
         foreach ($this->_capabilities as $capabilityKey => $capability) {
-            foreach ($params['order'] as $driverKey) {
+            foreach ($params['drivers'] as $driverKey => $driver) {
                 if ($params['drivers'][$driverKey]->hasCapability($capabilityKey)) {
                     if (empty($capabilities[$capabilityKey])) {
-                         /* TODO: resetpassword capability is debatable -
-                           We actually call update on the backend drivers to
-                           get the same password in all backends
-                           Thus, automatically assign resetpassword capability
-                           to drivers which have 'update'.
-                           The user may override this manually.
-                           Drivers which actually only provide resetpassword are
-                           supported, but more than one brings unpredictable
-                           results
-                        */
                         $capabilities[$capabilityKey] = array();
                     }
                     array_push($capabilities[$capabilityKey], $driverKey);
                 }
             }
         }
-        
         if (!empty($params['capabilities'])) { 
             // override default capabilities with provided capabilities
             $capabilities = array_merge($capabilities, $params['capabilities']);
-            
         } 
         $params['capabilities'] = $capabilities;
-        // TODO: unset order, we don't use it after initialization
-        // Do base initialisation
-        unset($params['order']);
         parent::__construct($params);
     }
 
-    protected $_test = array(); //test array
-
-    public function getParams() //test function to see all arrays
+    /*public function getParams() //test function to see all arrays
     {
        return($this->_test);
-    }
+    }*/
 
     /**
      * Find out if a set of login credentials are valid.
@@ -133,8 +110,6 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
      */
     public function transparent()
     {
-        // TODO: Check each configured driver in $this->_params['capabilities']['transparent']. Stop and return true if     successful. Throw Exception if no driver available
-
         if (!$this->hasCapability('transparent'))
         {
             throw new Horde_Auth_Exception('Unsupported.');
@@ -185,7 +160,7 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
         // TODO try to add the user to all backends in $this->_params['capabilities']['update'] - throw exception if no driver available
         if (!$this->hasCapability('update')) {
             throw new Horde_Auth_Exception('Unsupported.');
-    }
+        }
         foreach ($this->_params['capabilities']['update'] as $driverKey) {
             try{
                 $this->_params['drivers'][$driverKey]->updateUser($oldID, $newID, $credentials);
@@ -205,11 +180,6 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
      */
     public function resetPassword($userId)
     {
-        // Implement this later:
-        // Check the list of auth drivers for drivers which has resetpassword but not update capability (configured).
-        // If exists, remove these drivers from list and run resetPassword on these driver. Use the first returned password for all drivers which have update (see below)
-        // Else, do as below
-
         if (!$this->hasCapability('resetpassword')) {
             throw new Horde_Auth_Exception('Unsupported.');
         }
@@ -218,28 +188,17 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
         foreach ($this->_params['capabilities']['resetpassword'] as $resetKey) {
             if (in_array($resetKey, $this->_params['capabilities']['update'])) {
                     array_push($resetButUpdate, $resetKey);
-            }
-            else {
+            } else {
                 try {
                     $newPassword = $this->_params['drivers'][$resetKey]->resetPassword($userId);
                 } catch (Horde_Auth_Exception $e) {
                 }
             }
         }
-        // Implement this first:
-        // Generate a random password ONCE
-        // Try to update the user password to all backends - throw exception if no driver available
-        // Return the new random password
-
-        // inspired by https://stackoverflow.com/questions/4356289/php-random-string-generator
 
         if (!empty($resetButUpdate)) {
-            if (newPassword == '') {
-                $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                $charactersLength = strlen($characters);
-                for ($i = 0; $i < 8; $i++) {
-                    $newPassword .= $characters[rand(0, $charactersLength - 1)];
-                }
+            if ($newPassword == '') {
+                $newPassword = Horde_Auth::genRandomPassword();
             }
             $credentials = array('password' => $newPassword);
             foreach ($resetButUpdate as $driverKey) {
@@ -261,7 +220,6 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
      */
     public function removeUser($userId)
     {
-        // TODO try to remove the user from all backends in $this->_params['capabilities']['remove'] - throw exception if no driver available
         if (!$this->hasCapability('remove')) {
             throw new Horde_Auth_Exception('Unsupported.');
         }
@@ -284,9 +242,6 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
      */
     public function listUsers($sort = false)
     {
-        //Todo list all users from all backends and merge them with array_unique
-        // Merge the results - don't list any user twice
-        
         if (!$this->hasCapability('list')) {
             throw new Horde_Auth_Exception('Unsupported.');
         }
@@ -310,8 +265,7 @@ class Horde_Auth_Cascading extends Horde_Auth_Base
     */ 
     public function exists($userId)
     {
-        // rotate through all backends which have list capabddlity or exists capability - return true if any backend has this user, otherwise return false.
-        if (!$this->hasCapability('list') and !$this->hasCapability('exists')) {
+        if (!$this->hasCapability('list') && !$this->hasCapability('exists')) {
             throw new Horde_Auth_Exception('Unsupported.');
         }
         if ($this->hasCapability('exists')) {
