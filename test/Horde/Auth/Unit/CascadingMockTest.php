@@ -36,7 +36,6 @@ class Horde_Auth_Unit_CascadingTest extends Horde_Auth_TestCase
         $this->cascading = new Horde_Auth_Cascading(
             array(
                 'drivers' => array('admins' => $d1, 'db' => $d2, 'cryptdb' => $d3),
-                'order' => array('admins', 'db', 'cryptdb'),
             )
         );
     }
@@ -52,7 +51,7 @@ class Horde_Auth_Unit_CascadingTest extends Horde_Auth_TestCase
     public function testTransparent()
     {
         //throw exception if no backend provides transparent
-        $this->setExpectedException(Horde_Auth_Exception::class);
+        $this->setExpectedException('Horde_Auth_Exception');
         $this->cascading->transparent();
     }
 
@@ -107,15 +106,22 @@ class Horde_Auth_Unit_CascadingTest extends Horde_Auth_TestCase
 
     public function testUpdateUserFailDoesNotExist()
     {
-        // Try renaming unknown user
-       // $this->setExpectedException(Horde_Auth_Exception::class);
+        // Try renaming unknown user in unknown user
+        // Execption should be catched
         $this->cascading->updateUser('unknownuser', 'newname',  array('password' => 'foo'));
-        $this->setUp();
+        $this->assertFalse($this->cascading->exists('unknownuser'));
+        $this->assertFalse($this->cascading->exists('newname'));
+        // Try renaming unknown user in known user to change user1´ss password
+        // Execption should be catched
+        $this->cascading->updateUser('unknownuser', 'user1',  array('password' => 'foo'));
+        $this->assertFalse($this->cascading->exists('unknownuser'));
+        $this->assertFalse($this->cascading->authenticate('user1', array('password' => 'foo')));
+        $this->assertTrue($this->cascading->authenticate('user1', array('password' => 'pw1')));
     }
 
     public function testResetPassword()
     {
-        $this->setExpectedException(Horde_Auth_Exception::class);
+        $this->setExpectedException('Horde_Auth_Exception');
         $newPassword = $this->cascading->resetPassword('user1');
         //old Password should not work
         $this->assertFalse($this->cascading->authenticate('user1' , array('password' => 'pw1')));
